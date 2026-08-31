@@ -1,0 +1,90 @@
+registers: [0 1 2 3C 4D 5 6 7]
+R[int] = read int register
+
+ADDR_BUS = 16 bit
+DATA_BUS = 8  bit
+
+00 [3 R1] [3 R2] - RF
+MOV [R2] -> [R1] (00)
+
+01 - ALU
+01 [5 OPCODE] [1 R] | [3 R0] [3 R1] [2 R]
+AND  (01 00000) C = R0 & R1
+NAND (01 00001) C = ~(R0 &  R1)
+NOR  (01 00010) C = ~(R0 |  R1)
+OR   (01 00011) C = R0 | R1
+XOR  (01 00100) C = R0 ^ R1
+XNOR (01 00101) C = ~(R0 ^ R1)
+ADD  (01 00110) C = R0 + R1
+SUB  (01 00111) C = R0 - R1
+ADC  (01 01000) C = R0 + R1 + CF (for 16-bit addition)
+SBB  (01 01001) C = R0 - R1 - CF (for 16-bit subtraction)
+SHFL (01 01010) C = R0 << R1
+SHFR (01 01011) C = R0 >> R1
+ROL  (01 01100) C = rotate(R0) << R1
+ROR  (01 01101) C = rotatr(R0) >> R1
+MIN  (01 01110) C = min(R0, R1)
+MAX  (01 01111) C = max(R0, R1)
+NOT  (01 10000) C = ~R0
+NEG  (01 10001) C = -R0
+INC  (01 10010) C = R0 + 1
+DEC  (01 10011) C = R0 - 1
+
+100 - BU
+010 [4 OPCODE] [1 R]
+JE   (010 0000) if (C == D) jump {ROM[PC + 1],ROM[PC + 2]}
+JNE  (010 0001) if (C != D) jump {ROM[PC + 1],ROM[PC + 2]}
+
+JL   (010 0010) if (C < D)  jump {ROM[PC + 1],ROM[PC + 2]}
+JLE  (010 0011) if (C <= D) jump {ROM[PC + 1],ROM[PC + 2]}
+
+JG   (010 0100) if (C > D)  jump {ROM[PC + 1],ROM[PC + 2]}
+JGE  (010 0101) if (C >= D) jump {ROM[PC + 1],ROM[PC + 2]}
+
+CALL (010 0110) save PC and jump {ROM[PC + 1],ROM[PC + 2]}
+RET  (010 0111) return
+
+JZ   (010 1000) if (C == 0) jump {ROM[PC + 1],ROM[PC + 2]}
+JNZ  (010 1001) if (C != 0) jump {ROM[PC + 1],ROM[PC + 2]}
+
+JLZ  (010 1010) if (C < 0)  jump {ROM[PC + 1],ROM[PC + 2]}
+JLEZ (010 1011) if (C <= 0) jump {ROM[PC + 1],ROM[PC + 2]}
+
+JGZ  (010 1100) if (C > 0)  jump {ROM[PC + 1],ROM[PC + 2]}
+JGEZ (010 1101) if (C >= 0) jump {ROM[PC + 1],ROM[PC + 2]}
+
+JMP  (010 1110) jump {ROM[PC + 1],ROM[PC + 2]}
+
+110 - SYS
+110 [5 OPCODE]
+EI   (110 00000)    - IME <- 1
+DI   (110 00001)    - IME <- 0
+RETI (110 00010)    - STACK -> PC, IME <- 1
+---- (110 00011)
+HALT (110 00100)
+
+
+11 [3 OPCODE] [3 ARG0] - BUS
+
+PUSH   (11 000 [ARG0]) R[ARG0] -> STACK, SP--                      — 1 слово
+POP    (11 001 [ARG0]) STACK -> R[ARG0], SP++                      — 1 слово
+MOVI   (11 010 [ARG0]) ROM[PC+1] -> R[ARG0]                        — 2 слова
+
+LOAD   (11 011 [ARG0] | [5 R][3 ARG1])             — 2 слова
+   addr = {R[ARG1], R[ARG0]}
+
+   RAM[addr] -> C
+
+STORE  (11 100 [ARG0] | [5 R][3 ARG1])                                     — 2 слова
+   addr = {R[ARG1], R[ARG0]}
+
+   C -> RAM[addr]
+
+LOADA  (11 101 [ARG0])                                         — 3 слова
+   RAM[ { ROM[PC+2], ROM[PC+1] } ] -> R[ARG0]
+
+STOREA (11 110 [ARG0])                                         — 3 слова
+   R[ARG0] -> RAM[ { ROM[PC+2], ROM[PC+1] }  ]
+
+STOI   (11 111 [ARG0] | [5 R][3 ARG1])                             — 3 слова
+   ROM[PC+2] -> RAM[ {R[ARG1], R[ARG0]} ]

@@ -78,6 +78,7 @@ instructionDecoder id
 .secondWord(IR[1]),
 .T(T),
 .takeIntr(takeIntr),
+.inIntr(inIntr),
 .saveCommand(saveCommand),
 .saveSecondWord(saveSecondWord),
 .saveThirdWord(saveThirdWord),
@@ -173,7 +174,7 @@ always @(posedge clk) begin
             intT <= intT;
         end
         else begin
-            if (endTCU) begin
+            if (endTCU | inIntr) begin
                 T <= 3'b000;
             end
             else begin
@@ -339,6 +340,7 @@ module instructionDecoder
     input wire [2:0] T,
 
     input wire takeIntr,
+    input wire inIntr,
 
     output reg saveCommand,
     output reg saveSecondWord,
@@ -427,343 +429,344 @@ always @(*) begin
 
         setIme = 1'b0;
         delIme = 1'b0;
-
-        case (T)
-            3'b000: begin
-                if (!takeIntr) begin
-                    saveCommand = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-            end
-
-            3'b001: begin
-
-                if (command == 8'b00000110) begin
-                    setIme <= 1'b1;
-                    endT <= 1'b1;
+        if (!inIntr) begin
+            case (T)
+                3'b000: begin
+                    if (!takeIntr) begin
+                        saveCommand = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
                 end
 
-                if (command == 8'b00001110) begin
-                    delIme <= 1'b1;
-                    endT <= 1'b1;
-                end
+                3'b001: begin
 
-                if (command[1:0] == 2'b00) begin //MOV
-                    rgfMov = 1'b1;
-                    sel0 = command[4:2];
-                    sel1 = command[7:5];
-                    endT = 1'b1;
-                end
-
-                if (command[1:0] == 2'b01) begin //ALU: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[2:0] == 3'b010  && command[6:3] != 4'b0111) begin //BU: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b01011) begin //MOVI: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b01111) begin //LOAD: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b10011) begin //STORE: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b10111) begin //LOADA: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b11011) begin //STOREA: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b11111) begin //STOI: save second word
-                    saveSecondWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if ((command[2:0] == 3'b010 && command[6:3] == 4'b0111) || (command == 8'b00010110)) begin //BU RET | RETI: save high PC 1part
-                    incSP = 1'b1;
-                end
-
-                if (command[4:0] == 5'b00011) begin //PUSH
-                    bus_data_out_e = 1'b1;
-                    sel0 = command[7:5];
-
-                    loadSP = 1'b1;
-                    memReq = 1'b1;
-                    rw = 1'b1;
-
-                    decSP = 1'b1;
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b00111) begin //POP
-                    incSP = 1'b1;
-                end
-            end
-
-            3'b010: begin
-                if (command[1:0] == 2'b01 && command[6] == 1'b0) begin //ALU: save first arg at acum
-                    bus_data_out_e = 1'b1;
-                    sel0 = secondWord[2:0];
-
-                    storeAluAcu = 1'b1;
-                end
-
-                if (command[1:0] == 2'b01 && command[6] == 1'b1) begin //ALU: save result at acum
-                    bus_data_out_e = 1'b1;
-                    sel0 = secondWord[2:0];
-
-                    aluOn = 1'b1;
-                    aluCommand = command[6:2];
-                    storeAluRes = 1'b1;
-                end
-
-                if (command[2:0] == 3'b010 && command[6:3] != 4'b0111) begin //BU: save third word
-                    saveThirdWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if ((command[2:0] == 3'b010 && command[6:3] == 4'b0111) || (command == 8'b00010110)) begin //BU RET | RETI: save high PC 2part
-
-                    storeHighPC = 1'b1;
-                    loadSP = 1'b1;
-                    memReq = 1'b1;
-
-                    incSP = 1'b1;
-                end
-
-                if (command[4:0] == 5'b00111) begin //POP
-
-                    bus_data_in_e = 1'b1;
-                    sel0 = command[7:5];
-
-                    loadSP = 1'b1;
-                    memReq = 1'b1;
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b01011) begin //MOVI: load data and save
-                    loadIR1 = 1'b1;
-
-                    bus_data_in_e = 1'b1;
-                    sel0 = command[7:5];
-
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b01111) begin //LOAD: read RAM and save
-                    sel0 = command[7:5];
-                    sel1 = secondWord[7:5];
-                    bus_addr_out_e = 1'b1;
-                    storeC = 1'b1;
-
-                    memReq = 1'b1;
-
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b10011) begin //STORE: read RAM
-                    sel0 = command[7:5];
-                    sel1 = secondWord[7:5];
-                    bus_addr_out_e = 1'b1;
-                    loadC = 1'b1;
-
-                    memReq = 1'b1;
-                    rw = 1'b1;
-
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b10111) begin //LOADA: save third word
-                    saveThirdWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b11011) begin //STOREA: save third word
-                    saveThirdWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-
-                if (command[4:0] == 5'b11111) begin //STOI: save third word
-                    saveThirdWord = 1'b1;
-                    memReq = 1'b1;
-                    incPC = 1'b1;
-                end
-            end
-
-            3'b011: begin
-                if (command[1:0] == 2'b01 && command[6] == 1'b0) begin //ALU: save result at acum
-                    bus_data_out_e = 1'b1;
-                    sel0 = secondWord[5:3];
-
-                    aluOn = 1'b1;
-                    aluCommand = command[6:2];
-                    storeAluRes = 1'b1;
-                end
-
-                if (command[1:0] == 2'b01 && command[6] == 1'b1) begin //ALU: save result at rgf
-                    bus_data_in_e = 1'b1;
-                    sel0 = 3'b011;
-
-                    loadAluRes = 1'b1;
-
-                    endT = 1'b1;
-                end
-
-                if (command[2:0] == 3'b010 && command[6] == 1'b0 && command[6:3] != 4'b0110 && command[6:3] != 4'b0111) begin //BU: load D to alu reg
-                    bus_data_out_e = 1'b1;
-                    sel0 = 3'b100;
-
-                    storeAluAcu = 1'b1;
-                end
-
-                if (command[2:0] == 3'b010 && command[6:3] == 4'b0110) begin //BU CALL: save low PC
-                    loadLowPC = 1'b1;
-
-                    loadSP = 1'b1;
-                    memReq = 1'b1;
-                    rw = 1'b1;
-
-                    decSP = 1'b1;
-                end
-
-                if ((command[2:0] == 3'b010 && command[6:3] == 4'b0111) || (command == 8'b00010110)) begin //BU RET | RETI: save low PC
-
-                    storeLowPC = 1'b1;
-                    loadSP = 1'b1;
-                    memReq = 1'b1;
-
-                    if (command == 8'b00010110) begin
+                    if (command == 8'b00000110) begin
                         setIme <= 1'b1;
+                        endT <= 1'b1;
                     end
 
-                    endT = 1'b1;
+                    if (command == 8'b00001110) begin
+                        delIme <= 1'b1;
+                        endT <= 1'b1;
+                    end
+
+                    if (command[1:0] == 2'b00) begin //MOV
+                        rgfMov = 1'b1;
+                        sel0 = command[4:2];
+                        sel1 = command[7:5];
+                        endT = 1'b1;
+                    end
+
+                    if (command[1:0] == 2'b01) begin //ALU: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[2:0] == 3'b010  && command[6:3] != 4'b0111) begin //BU: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b01011) begin //MOVI: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b01111) begin //LOAD: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b10011) begin //STORE: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b10111) begin //LOADA: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b11011) begin //STOREA: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b11111) begin //STOI: save second word
+                        saveSecondWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if ((command[2:0] == 3'b010 && command[6:3] == 4'b0111) || (command == 8'b00010110)) begin //BU RET | RETI: save high PC 1part
+                        incSP = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b00011) begin //PUSH
+                        bus_data_out_e = 1'b1;
+                        sel0 = command[7:5];
+
+                        loadSP = 1'b1;
+                        memReq = 1'b1;
+                        rw = 1'b1;
+
+                        decSP = 1'b1;
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b00111) begin //POP
+                        incSP = 1'b1;
+                    end
+                end
+
+                3'b010: begin
+                    if (command[1:0] == 2'b01 && command[6] == 1'b0) begin //ALU: save first arg at acum
+                        bus_data_out_e = 1'b1;
+                        sel0 = secondWord[2:0];
+
+                        storeAluAcu = 1'b1;
+                    end
+
+                    if (command[1:0] == 2'b01 && command[6] == 1'b1) begin //ALU: save result at acum
+                        bus_data_out_e = 1'b1;
+                        sel0 = secondWord[2:0];
+
+                        aluOn = 1'b1;
+                        aluCommand = command[6:2];
+                        storeAluRes = 1'b1;
+                    end
+
+                    if (command[2:0] == 3'b010 && command[6:3] != 4'b0111) begin //BU: save third word
+                        saveThirdWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if ((command[2:0] == 3'b010 && command[6:3] == 4'b0111) || (command == 8'b00010110)) begin //BU RET | RETI: save high PC 2part
+
+                        storeHighPC = 1'b1;
+                        loadSP = 1'b1;
+                        memReq = 1'b1;
+
+                        incSP = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b00111) begin //POP
+
+                        bus_data_in_e = 1'b1;
+                        sel0 = command[7:5];
+
+                        loadSP = 1'b1;
+                        memReq = 1'b1;
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b01011) begin //MOVI: load data and save
+                        loadIR1 = 1'b1;
+
+                        bus_data_in_e = 1'b1;
+                        sel0 = command[7:5];
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b01111) begin //LOAD: read RAM and save
+                        sel0 = command[7:5];
+                        sel1 = secondWord[7:5];
+                        bus_addr_out_e = 1'b1;
+                        storeC = 1'b1;
+
+                        memReq = 1'b1;
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b10011) begin //STORE: read RAM
+                        sel0 = command[7:5];
+                        sel1 = secondWord[7:5];
+                        bus_addr_out_e = 1'b1;
+                        loadC = 1'b1;
+
+                        memReq = 1'b1;
+                        rw = 1'b1;
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b10111) begin //LOADA: save third word
+                        saveThirdWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b11011) begin //STOREA: save third word
+                        saveThirdWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b11111) begin //STOI: save third word
+                        saveThirdWord = 1'b1;
+                        memReq = 1'b1;
+                        incPC = 1'b1;
+                    end
+                end
+
+                3'b011: begin
+                    if (command[1:0] == 2'b01 && command[6] == 1'b0) begin //ALU: save result at acum
+                        bus_data_out_e = 1'b1;
+                        sel0 = secondWord[5:3];
+
+                        aluOn = 1'b1;
+                        aluCommand = command[6:2];
+                        storeAluRes = 1'b1;
+                    end
+
+                    if (command[1:0] == 2'b01 && command[6] == 1'b1) begin //ALU: save result at rgf
+                        bus_data_in_e = 1'b1;
+                        sel0 = 3'b011;
+
+                        loadAluRes = 1'b1;
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[2:0] == 3'b010 && command[6] == 1'b0 && command[6:3] != 4'b0110 && command[6:3] != 4'b0111) begin //BU: load D to alu reg
+                        bus_data_out_e = 1'b1;
+                        sel0 = 3'b100;
+
+                        storeAluAcu = 1'b1;
+                    end
+
+                    if (command[2:0] == 3'b010 && command[6:3] == 4'b0110) begin //BU CALL: save low PC
+                        loadLowPC = 1'b1;
+
+                        loadSP = 1'b1;
+                        memReq = 1'b1;
+                        rw = 1'b1;
+
+                        decSP = 1'b1;
+                    end
+
+                    if ((command[2:0] == 3'b010 && command[6:3] == 4'b0111) || (command == 8'b00010110)) begin //BU RET | RETI: save low PC
+
+                        storeLowPC = 1'b1;
+                        loadSP = 1'b1;
+                        memReq = 1'b1;
+
+                        if (command == 8'b00010110) begin
+                            setIme <= 1'b1;
+                        end
+
+                        endT = 1'b1;
+                    end
+
+
+                    if (command[2:0] == 3'b010 && command[6] == 1'b1) begin //BU: jump for only C
+                        bus_data_out_e = 1'b1;
+                        sel0 = 3'b011;
+
+                        buOn = 1'b1;
+                        buCommand = command[5:3];
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b10111) begin //LOADA: save data
+                        loadIRAddr = 1'b1;
+                        memReq = 1'b1;
+
+                        bus_data_in_e = 1'b1;
+                        sel0 = command[7:5];
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b11011) begin //STOREA: store data
+                        loadIRAddr = 1'b1;
+                        memReq = 1'b1;
+                        rw = 1'b1;
+
+                        bus_data_out_e = 1'b1;
+                        sel0 = command[7:5];
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[4:0] == 5'b11111) begin //STOI: store data at ram
+                        bus_addr_out_e = 1'b1;
+                        sel0 = command[7:5];
+                        sel1 = secondWord[7:5];
+
+                        rw = 1'b1;
+                        memReq = 1'b1;
+
+                        loadIR2 = 1'b1;
+
+                        endT = 1'b1;
+                    end
+                end
+
+                3'b100: begin
+                    if (command[1:0] == 2'b01 && command[6] == 1'b0) begin //ALU: save result at rgf
+                        bus_data_in_e = 1'b1;
+                        sel0 = 3'b011;
+
+                        loadAluRes = 1'b1;
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[2:0] == 3'b010 && command[6] == 1'b0 && command[6:3] != 4'b0110) begin //BU: save res to acum
+                        bus_data_out_e = 1'b1;
+                        sel0 = 3'b011;
+
+                        aluOn = 1'b1;
+                        aluCommand = 5'b00111;
+                        storeAluRes = 1'b1;
+                    end
+
+                    if (command[2:0] == 3'b010 && command[6:3] == 4'b0110) begin //BU CALL:  save high PC
+
+                        loadHighPC = 1'b1;
+
+                        loadSP = 1'b1;
+                        memReq = 1'b1;
+                        rw = 1'b1;
+
+                        decSP = 1'b1;
+                    end
+                end
+
+                3'b101: begin
+                    if (command[2:0] == 3'b010 && command[6] == 1'b0) begin //BU: jump
+                        loadAluRes = 1'b1;
+
+                        buOn = 1'b1;
+                        buCommand = command[5:3];
+
+                        endT = 1'b1;
+                    end
+
+                    if (command[2:0] == 3'b010 && command[6:3] == 4'b0110) begin //BU CALL:  jump
+                        buOn = 1'b1;
+                        buCommand = command[5:3];
+
+                        endT = 1'b1;
+                    end
                 end
 
 
-                if (command[2:0] == 3'b010 && command[6] == 1'b1) begin //BU: jump for only C
-                    bus_data_out_e = 1'b1;
-                    sel0 = 3'b011;
-
-                    buOn = 1'b1;
-                    buCommand = command[5:3];
-
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b10111) begin //LOADA: save data
-                    loadIRAddr = 1'b1;
-                    memReq = 1'b1;
-
-                    bus_data_in_e = 1'b1;
-                    sel0 = command[7:5];
-
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b11011) begin //STOREA: store data
-                    loadIRAddr = 1'b1;
-                    memReq = 1'b1;
-                    rw = 1'b1;
-
-                    bus_data_out_e = 1'b1;
-                    sel0 = command[7:5];
-
-                    endT = 1'b1;
-                end
-
-                if (command[4:0] == 5'b11111) begin //STOI: store data at ram
-                    bus_addr_out_e = 1'b1;
-                    sel0 = command[7:5];
-                    sel1 = secondWord[7:5];
-
-                    rw = 1'b1;
-                    memReq = 1'b1;
-
-                    loadIR2 = 1'b1;
-
-                    endT = 1'b1;
-                end
-            end
-
-            3'b100: begin
-                if (command[1:0] == 2'b01 && command[6] == 1'b0) begin //ALU: save result at rgf
-                    bus_data_in_e = 1'b1;
-                    sel0 = 3'b011;
-
-                    loadAluRes = 1'b1;
-
-                    endT = 1'b1;
-                end
-
-                if (command[2:0] == 3'b010 && command[6] == 1'b0 && command[6:3] != 4'b0110) begin //BU: save res to acum
-                    bus_data_out_e = 1'b1;
-                    sel0 = 3'b011;
-
-                    aluOn = 1'b1;
-                    aluCommand = 5'b00111;
-                    storeAluRes = 1'b1;
-                end
-
-                if (command[2:0] == 3'b010 && command[6:3] == 4'b0110) begin //BU CALL:  save high PC
-
-                    loadHighPC = 1'b1;
-
-                    loadSP = 1'b1;
-                    memReq = 1'b1;
-                    rw = 1'b1;
-
-                    decSP = 1'b1;
-                end
-            end
-
-            3'b101: begin
-                if (command[2:0] == 3'b010 && command[6] == 1'b0) begin //BU: jump
-                    loadAluRes = 1'b1;
-
-                    buOn = 1'b1;
-                    buCommand = command[5:3];
-
-                    endT = 1'b1;
-                end
-
-                if (command[2:0] == 3'b010 && command[6:3] == 4'b0110) begin //BU CALL:  jump
-                    buOn = 1'b1;
-                    buCommand = command[5:3];
-
-                    endT = 1'b1;
-                end
-            end
-
-
-        endcase
+            endcase
+        end
     end
 
 endmodule

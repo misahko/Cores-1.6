@@ -44,8 +44,8 @@ reg IME;
 reg inIntr;
 reg [1:0] intT;
 
-wire [7:0] vecLowAddr  = {4'b0, vec, 1'b0};   // vec*2
-wire [7:0] vecHighAddr = vecLowAddr + 8'd1;
+wire [7:0] vecHighAddr  = {4'b0, vec, 1'b0};   // vec*2
+wire [7:0] vecLowAddr = vecHighAddr + 8'd1;
 
 wire saveCommand, saveSecondWord, saveThirdWord, endT, incPC,
  loadSP, loadLowPC, loadHighPC, storeLowPC, storeHighPC, decSP,
@@ -151,7 +151,7 @@ interruptDecoder interruptDecoder
 .memReq(intMemReq)
 );
 
-assign addr = setHighVec ? {8'h00, vecHighAddr} : setLowVec ? {8'h00, vecLowAddr} : (intLoadSP | loadSP) ? SP : (saveCommand | saveSecondWord | saveThirdWord) ? PC : loadIRAddr ? {IR[2], IR[1]} :16'hzzzz;
+assign addr = setHighVec ? {8'h00, vecHighAddr} : setLowVec ? {8'h00, vecLowAddr} : (intLoadSP | loadSP) ? SP : (saveCommand | saveSecondWord | saveThirdWord) ? PC : loadIRAddr ? {IR[1], IR[2]} :16'hzzzz;
 
 assign data = (loadLowPC | intLoadLowPC) ? PC[7:0] : (loadHighPC | intLoadHighPC) ? PC[15:8] : loadIR1 ? IR[1] : loadIR2 ? IR[2] : 8'hzz;
 
@@ -217,7 +217,7 @@ always @(posedge clk) begin
             end
 
             if (jump) begin
-                PC <= {IR[2], IR[1]};
+                PC <= {IR[1], IR[2]};
             end
 
             if (setIntr) begin

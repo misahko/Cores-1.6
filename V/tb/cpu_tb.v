@@ -60,21 +60,35 @@ module cpu_tb;
         // BUS group: MOVI / LOAD / STORE round trip through RAM[0x3000]
         // ---------------------------------------------------------------
         // 0x00: MOVI R0, #0x00          -> pointer low byte
-        ram.mem[16'h0010] = 8'b00001011;  ram.mem[16'h0011] = 8'h00;
-        // 0x02: MOVI R1, #0x30          -> pointer high byte; {R1,R0}=0x3000
-        ram.mem[16'h0012] = 8'b00101011;  ram.mem[16'h0013] = 8'h30;
-        // 0x04: MOVI R5, #0xAA          -> test value
-        ram.mem[16'h0014] = 8'b10101011;  ram.mem[16'h0015] = 8'hAA;
-        // 0x06: MOV  RC, R5             -> C = R5 (0xAA)   [see assumption 1]
-        ram.mem[16'h0016] = 8'b10101100;
-        // 0x07: STORE ARG0=R0, ARG1=R1  -> RAM[0x3000] = C (0xAA)
-        ram.mem[16'h0017] = 8'b00010011;  ram.mem[16'h0018] = 8'b00100000;
-        // 0x09: LOAD  ARG0=R0, ARG1=R1  -> C = RAM[0x3000], expect 0xAA
-        ram.mem[16'h0019] = 8'b00001111;  ram.mem[16'h001A] = 8'b00100000;
-        // 0x0B: PUSH R5   (0xC5 -- safe, doesn't collide w/ SYS 0xC0-0xC4)
-        ram.mem[16'h001B] = 8'b10100011;
-        // 0x0C: POP  R6   -> R6 should come back 0xAA
-        ram.mem[16'h001C] = 8'b11000111;
+
+       ram.mem[16'h0000] = 8'h00; ram.mem[16'h0001] = 8'h28;
+
+
+        ram.mem[16'h0010] = 8'b00001011;  ram.mem[16'h0011] = 8'h07; //MOVI
+        ram.mem[16'h0012] = 8'b00000011; //PUSH
+        ram.mem[16'h0013] = 8'b00100111; //POP
+        ram.mem[16'h0014] = 8'b00001100; //MOV
+        ram.mem[16'h0015] = 8'b00010011;  ram.mem[16'h0016] = 8'b00100000; //STORE
+        ram.mem[16'h0017] = 8'b00001111;  ram.mem[16'h0018] = 8'b00100000; //LOAD
+        ram.mem[16'h0019] = 8'b01010111;  ram.mem[16'h001a] = 8'h07; ram.mem[16'h001b] = 8'h07; //LOADA
+        ram.mem[16'h001c] = 8'b01011011;  ram.mem[16'h001d] = 8'h08; ram.mem[16'h001e] = 8'h07; //STOREA
+        ram.mem[16'h001f] = 8'b00011111;  ram.mem[16'h0020] = 8'b00100000; ram.mem[16'h0021] = 8'hff;
+        ram.mem[16'h0022] = 8'b01110010;  ram.mem[16'h0023] = 16'h00; ram.mem[16'h0024] = 16'h2b;
+
+
+        ram.mem[16'h0028] = 8'b11101011; ram.mem[16'h0029] = 8'hfa; //MOVI
+        ram.mem[16'h002a] = 8'b00010110;
+
+        ram.mem[16'h2800] = 8'b11101011; ram.mem[16'h2801] = 8'haf; //MOVI
+        ram.mem[16'h2802] = 8'b00010110;
+
+
+
+
+        #29
+        irq = 1;
+        #5
+        irq = 0;
 
         #4000;
 
@@ -84,8 +98,8 @@ module cpu_tb;
             cpu.rgf.registers[3], cpu.rgf.registers[4], cpu.rgf.registers[5],
             cpu.rgf.registers[6], cpu.rgf.registers[7]);
         $display("PC=%h", cpu.cu.PC);
-        $display("RAM[0x3000]=%h (expect 55)", ram.mem[16'h3000]);
-        $display("RAM[0x3001]=%h (expect aa)", ram.mem[16'h3001]);
+        $display("RAM[0x3000]=%h (expect 55)", ram.mem[16'h0707]);
+        $display("RAM[0x3001]=%h (expect aa)", ram.mem[16'h0807]);
         $display("expect: C=55, R5=aa, R6=aa(after POP), R7=aa(after LOADA), PC near 0021 (HALT addr)");
 
         #50 $finish;

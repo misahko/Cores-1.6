@@ -11,7 +11,6 @@ module cpu
     output wire [15:0] addr,
     output wire rw,
     output wire memReq
-
 );
 
 wire rgfMov, bus_data_in_e, bus_data_out_e, bus_addr_out_e, storeC, loadC;
